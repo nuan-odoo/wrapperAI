@@ -1,19 +1,19 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
+from typing import Optional, List
 from app.browser_manager import BrowserManager
+from app.config import CHATBOT_CONFIGS
 
-# One shared browser session for all requests
 browser_manager = BrowserManager()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Start the browser when the server boots up
-    await browser_manager.start()
-    yield
-    # Shut the browser down cleanly when the server stops
+    yield  # Browser starts only after /setup is called, not on boot
     await browser_manager.stop()
 
 
@@ -24,7 +24,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Allow requests from any origin (fine for a uni project)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -32,8 +31,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Serve the setup GUI
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-# --- Request / Response shapes ---
+
+# --- Request / Response models ---
+
+class SetupRequest(BaseModel):
+    target: str
+    cookies: Optional[List[dict]] = None  # For Claude
+    email: Optional[str] = None           # For ChatGPT / Gemini
+    password: Optional[str] = None        # For ChatGPT / Gemini
 
 class ChatRequest(BaseModel):
     message: str
@@ -41,45 +49,68 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     message: str
     response: str
+    bot: str
 
 
 # --- Endpoints ---
 
+@app.get("/", include_in_schema=False)
+async def root():
+    """Serve the setup GUI on first visit."""
+    return FileResponse("app/static/index.html")
+
+
+@app.post("/setup")
+async def setup(request: SetupRequest):
+    """
+    Called by the setup GUI to initialise the browser session.
+    Accepts either cookies (Claude) or email+password (ChatGPT/Gemini).
+    """
+    if request.target not in CHATBOT_CONFIGS:
+        raise HTTPException(status_code=400, detail=f"Unknown target '{request.target}'. Choose from: {list(CHATBOT_CONFIGS.keys())}")
+
+    if browser_manager.is_ready:
+        raise HTTPException(status_code=400, detail="Session already active. Restart the container to reconfigure.")
+
+    try:
+        await browser_manager.start(
+            target=request.target,
+            cookies=request.cookies,
+            email=request.email,
+            password=request.password,
+        )
+        return {"status": "ok", "bot": request.target}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start browser: {str(e)}")
+
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """
-    Send a message and get a response back — just like a real LLM API.
-    
-    Example request body:
-    {
-        "message": "What is a wrapper API?"
-    }
+    Send a message to the active chatbot and return the response.
+    Requires /setup to have been completed first.
     """
+    if not browser_manager.is_ready:
+        raise HTTPException(status_code=503, detail="Not configured yet. Visit http://localhost:8000 to complete setup.")
+
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
     try:
         response = await browser_manager.send_message(request.message)
-        return ChatResponse(message=request.message, response=response)
+        return ChatResponse(
+            message=request.message,
+            response=response,
+            bot=browser_manager.active_bot
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Browser automation error: {str(e)}")
 
 
 @app.get("/health")
 async def health():
-    """Check that the API and browser session are alive."""
     return {
         "status": "ok",
-        "browser_active": browser_manager.page is not None
-    }
-
-
-@app.get("/")
-async def root():
-    """Landing page — points to the interactive docs."""
-    return {
-        "name": "WrapperAI",
-        "docs": "/docs",
-        "health": "/health",
-        "chat": "/chat"
+        "configured": browser_manager.is_ready,
+        "active_bot": browser_manager.active_bot,
     }

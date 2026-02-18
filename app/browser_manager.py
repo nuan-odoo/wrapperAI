@@ -1,62 +1,84 @@
 import asyncio
 from playwright.async_api import async_playwright, Page, Browser
-from app.config import CHATBOT_URL, CHATBOT_EMAIL, CHATBOT_PASSWORD, SELECTORS, CHATBOT_TARGET
+from app.config import CHATBOT_CONFIGS
 
 
 class BrowserManager:
     def __init__(self):
-        self.playwright = None
+        self.playwright  = None
         self.browser: Browser = None
-        self.page: Page = None
-        self.lock = asyncio.Lock()
+        self.page: Page  = None
+        self.lock        = asyncio.Lock()
+        self.is_ready    = False
+        self.active_bot  = None
 
-    async def start(self):
-        """Launch the headless browser and log in once when the server starts."""
+    async def start(self, target: str, cookies: list = None, email: str = None, password: str = None):
+        """
+        Launch the browser and authenticate using either cookies or email/password.
+        Called once from the /setup endpoint after the user completes the GUI form.
+        """
+        config = CHATBOT_CONFIGS[target]
+        self.active_bot = target
+
         self.playwright = await async_playwright().start()
         self.browser = await self.playwright.chromium.launch(
             headless=True,
             args=["--no-sandbox", "--disable-setuid-sandbox"]
         )
         context = await self.browser.new_context()
+
+        # Inject cookies before navigating (cookie-based auth like Claude)
+        if config["auth"] == "cookie" and cookies:
+            await context.add_cookies(cookies)
+
         self.page = await context.new_page()
+        await self.page.goto(config["url"])
 
-        await self.page.goto(CHATBOT_URL)
-        await self._login()
+        # Password-based auth (ChatGPT, Gemini)
+        if config["auth"] == "password" and email and password:
+            await self._login(config, email, password)
 
-    async def _login(self):
-        """Log in using the selectors defined for the active chatbot."""
-        login = SELECTORS["login"]
+        # Wait for the chat input to confirm we're logged in
+        await self.page.wait_for_selector(config["input_box"], timeout=20000)
+        self.is_ready = True
+
+    async def _login(self, config: dict, email: str, password: str):
+        """Handle email/password login flow."""
+        login = config["login"]
         try:
             await self.page.wait_for_selector(login["email_field"], timeout=5000)
-            await self.page.fill(login["email_field"], CHATBOT_EMAIL)
+            await self.page.fill(login["email_field"], email)
             await self.page.click(login["submit_button"])
 
             await self.page.wait_for_selector(login["password_field"], timeout=5000)
-            await self.page.fill(login["password_field"], CHATBOT_PASSWORD)
+            await self.page.fill(login["password_field"], password)
             await self.page.click(login["submit_button"])
-
-            await self.page.wait_for_selector(SELECTORS["input_box"], timeout=15000)
         except Exception:
-            # Already logged in, or no login page appeared
             pass
 
     async def send_message(self, message: str) -> str:
-        """Type a message into the chatbot UI and return the response."""
+        """
+        Core shadow API method — types into the GUI and captures the response.
+        """
+        if not self.is_ready:
+            raise RuntimeError("Browser session not ready. Complete setup first.")
+
+        config = CHATBOT_CONFIGS[self.active_bot]
+
         async with self.lock:
-            input_box = self.page.locator(SELECTORS["input_box"])
+            input_box = self.page.locator(config["input_box"])
             await input_box.click()
             await input_box.fill(message)
-            await self.page.click(SELECTORS["send_button"])
+            await self.page.click(config["send_button"])
 
-            # Wait for response to finish streaming
-            last_text = ""
+            last_text    = ""
             stable_count = 0
 
             while stable_count < 3:
                 await asyncio.sleep(1)
                 try:
-                    elements = self.page.locator(SELECTORS["response"])
-                    count = await elements.count()
+                    elements     = self.page.locator(config["response"])
+                    count        = await elements.count()
                     if count == 0:
                         continue
                     current_text = await elements.last.inner_text()
@@ -64,12 +86,14 @@ class BrowserManager:
                         stable_count += 1
                     else:
                         stable_count = 0
-                        last_text = current_text
+                        last_text    = current_text
                 except Exception:
                     continue
 
             return last_text
 
     async def stop(self):
-        await self.browser.close()
-        await self.playwright.stop()
+        if self.browser:
+            await self.browser.close()
+        if self.playwright:
+            await self.playwright.stop()

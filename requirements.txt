@@ -2,3 +2,5 @@ fastapi
 uvicorn
 playwright
 python-dotenv
+python-multipart
+aiofiles

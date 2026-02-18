@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WrapperAI — Setup</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .card {
+      background: #1a1d27;
+      border: 1px solid #2a2d3a;
+      border-radius: 16px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 580px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 2rem;
+    }
+
+    .logo-icon {
+      width: 42px;
+      height: 42px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .logo h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #6366f1, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .logo p {
+      font-size: 0.78rem;
+      color: #6b7280;
+      margin-top: 1px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .field { margin-bottom: 1.4rem; }
+
+    .bot-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 1.4rem;
+    }
+
+    .bot-option {
+      border: 2px solid #2a2d3a;
+      border-radius: 10px;
+      padding: 14px 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #12151f;
+    }
+
+    .bot-option:hover { border-color: #6366f1; }
+
+    .bot-option.selected {
+      border-color: #6366f1;
+      background: #1e1f3a;
+    }
+
+    .bot-option .emoji { font-size: 1.8rem; display: block; margin-bottom: 6px; }
+    .bot-option .name { font-size: 0.82rem; font-weight: 600; color: #d1d5db; }
+    .bot-option .note { font-size: 0.7rem; color: #6b7280; margin-top: 3px; }
+
+    textarea, input[type="text"] {
+      width: 100%;
+      background: #12151f;
+      border: 1px solid #2a2d3a;
+      border-radius: 8px;
+      color: #e0e0e0;
+      padding: 12px 14px;
+      font-size: 0.88rem;
+      font-family: monospace;
+      outline: none;
+      transition: border-color 0.2s;
+      resize: vertical;
+    }
+
+    textarea:focus, input[type="text"]:focus {
+      border-color: #6366f1;
+    }
+
+    .hint {
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    .hint a { color: #6366f1; text-decoration: none; }
+    .hint a:hover { text-decoration: underline; }
+
+    .cookie-section { display: none; }
+    .password-section { display: none; }
+
+    button[type="submit"] {
+      width: 100%;
+      padding: 13px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      margin-top: 0.5rem;
+    }
+
+    button[type="submit"]:hover { opacity: 0.88; }
+    button[type="submit"]:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .status {
+      margin-top: 1.2rem;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      display: none;
+    }
+
+    .status.success { background: #0d2a1f; border: 1px solid #16a34a; color: #4ade80; }
+    .status.error   { background: #2a0d0d; border: 1px solid #dc2626; color: #f87171; }
+    .status.loading { background: #1a1d2e; border: 1px solid #6366f1; color: #a78bfa; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #2a2d3a;
+      margin: 1.5rem 0;
+    }
+
+    .ready-box {
+      display: none;
+      background: #0d2a1f;
+      border: 1px solid #16a34a;
+      border-radius: 10px;
+      padding: 1.2rem;
+      margin-top: 1.2rem;
+    }
+
+    .ready-box h3 { color: #4ade80; font-size: 0.95rem; margin-bottom: 8px; }
+
+    .endpoint {
+      background: #12151f;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-family: monospace;
+      font-size: 0.82rem;
+      color: #a78bfa;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="logo-icon">🔀</div>
+    <div>
+      <h1>WrapperAI</h1>
+      <p>Shadow API Setup</p>
+    </div>
+  </div>
+
+  <form id="setupForm">
+
+    <!-- Bot selector -->
+    <div class="field">
+      <label>Choose Chatbot</label>
+      <div class="bot-grid">
+        <div class="bot-option selected" data-bot="claude">
+          <span class="emoji">🟠</span>
+          <span class="name">Claude</span>
+          <span class="note">Cookie login</span>
+        </div>
+        <div class="bot-option" data-bot="chatgpt">
+          <span class="emoji">🟢</span>
+          <span class="name">ChatGPT</span>
+          <span class="note">Email + password</span>
+        </div>
+        <div class="bot-option" data-bot="gemini">
+          <span class="emoji">🔵</span>
+          <span class="name">Gemini</span>
+          <span class="note">Email + password</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cookie login (Claude) -->
+    <div class="cookie-section field" id="cookieSection">
+      <label>Session Cookies (JSON)</label>
+      <textarea id="cookieInput" rows="6" placeholder='[{"name":"sessionKey","value":"..."}]'></textarea>
+      <p class="hint">
+        Install <a href="https://chrome.google.com/webstore/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm" target="_blank">Cookie-Editor</a> 
+        in Chrome → go to <a href="https://claude.ai" target="_blank">claude.ai</a> while logged in → click the extension → 
+        <strong>Export → Export as JSON</strong> → paste here.
+        <br><br>⚠️ These are stored only inside this container and never sent to GitHub.
+      </p>
+    </div>
+
+    <!-- Password login (ChatGPT / Gemini) -->
+    <div class="password-section field" id="passwordSection">
+      <label>Email</label>
+      <input type="text" id="emailInput" placeholder="your@email.com" />
+      <div style="margin-top:1rem;">
+        <label>Password</label>
+        <input type="text" id="passwordInput" placeholder="your password" />
+      </div>
+    </div>
+
+    <button type="submit" id="submitBtn">Launch WrapperAI</button>
+  </form>
+
+  <div class="status" id="status"></div>
+
+  <div class="ready-box" id="readyBox">
+    <h3>✅ WrapperAI is running!</h3>
+    <p style="font-size:0.82rem; color:#9ca3af; margin-bottom:8px;">Send requests to:</p>
+    <div class="endpoint">POST http://localhost:8000/chat</div>
+    <div class="endpoint" style="margin-top:6px;">GET &nbsp;http://localhost:8000/docs</div>
+  </div>
+</div>
+
+<script>
+  let selectedBot = 'claude';
+
+  // Bot selector
+  document.querySelectorAll('.bot-option').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.bot-option').forEach(b => b.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedBot = el.dataset.bot;
+      updateSections();
+    });
+  });
+
+  function updateSections() {
+    const cookieSec   = document.getElementById('cookieSection');
+    const passwordSec = document.getElementById('passwordSection');
+    if (selectedBot === 'claude') {
+      cookieSec.style.display   = 'block';
+      passwordSec.style.display = 'none';
+    } else {
+      cookieSec.style.display   = 'none';
+      passwordSec.style.display = 'block';
+    }
+  }
+
+  updateSections();
+
+  // Form submit
+  document.getElementById('setupForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const btn    = document.getElementById('submitBtn');
+    const status = document.getElementById('status');
+
+    btn.disabled = true;
+    status.className = 'status loading';
+    status.style.display = 'block';
+    status.textContent = '⏳ Starting browser session, this may take 30–60 seconds...';
+
+    const payload = { target: selectedBot };
+
+    if (selectedBot === 'claude') {
+      try {
+        payload.cookies = JSON.parse(document.getElementById('cookieInput').value);
+      } catch {
+        status.className = 'status error';
+        status.textContent = '❌ Invalid JSON in cookies field. Make sure you exported correctly.';
+        btn.disabled = false;
+        return;
+      }
+    } else {
+      payload.email    = document.getElementById('emailInput').value;
+      payload.password = document.getElementById('passwordInput').value;
+    }
+
+    try {
+      const res  = await fetch('/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        status.style.display = 'none';
+        document.getElementById('readyBox').style.display = 'block';
+        document.getElementById('setupForm').style.display = 'none';
+      } else {
+        status.className = 'status error';
+        status.textContent = '❌ ' + (data.detail || 'Something went wrong.');
+        btn.disabled = false;
+      }
+    } catch (err) {
+      status.className = 'status error';
+      status.textContent = '❌ Could not reach the server: ' + err.message;
+      btn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
