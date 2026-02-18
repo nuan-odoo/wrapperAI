@@ -2,12 +2,8 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches: ["main"]     # Runs automatically every time you push to main
-  workflow_dispatch:        # Also lets you trigger it manually from GitHub
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+    branches: ["main"]
+  workflow_dispatch:
 
 jobs:
   build-and-push:
@@ -33,5 +29,5 @@ jobs:
           context: .
           push: true
           tags: |
-            IMAGE_NAME: ${{ github.repository_owner }}/wrapperai
-            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ghcr.io/nuan-odoo/wrapperai:latest
+            ghcr.io/nuan-odoo/wrapperai:${{ github.sha }}
