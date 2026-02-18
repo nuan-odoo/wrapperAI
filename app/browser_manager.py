@@ -1,6 +1,6 @@
 import asyncio
 from playwright.async_api import async_playwright, Page, Browser
-from app.config import CHATBOT_URL, CHATBOT_EMAIL, CHATBOT_PASSWORD, SELECTORS
+from app.config import CHATBOT_URL, CHATBOT_EMAIL, CHATBOT_PASSWORD, SELECTORS, CHATBOT_TARGET
 
 
 class BrowserManager:
@@ -8,7 +8,6 @@ class BrowserManager:
         self.playwright = None
         self.browser: Browser = None
         self.page: Page = None
-        # Lock prevents two requests from typing at the same time
         self.lock = asyncio.Lock()
 
     async def start(self):
@@ -16,7 +15,7 @@ class BrowserManager:
         self.playwright = await async_playwright().start()
         self.browser = await self.playwright.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox"]  # Required inside Docker
+            args=["--no-sandbox", "--disable-setuid-sandbox"]
         )
         context = await self.browser.new_context()
         self.page = await context.new_page()
@@ -25,35 +24,31 @@ class BrowserManager:
         await self._login()
 
     async def _login(self):
-        """Log in to the chatbot. Skips gracefully if already logged in."""
+        """Log in using the selectors defined for the active chatbot."""
+        login = SELECTORS["login"]
         try:
-            await self.page.wait_for_selector('input[type="email"]', timeout=5000)
-            await self.page.fill('input[type="email"]', CHATBOT_EMAIL)
-            await self.page.fill('input[type="password"]', CHATBOT_PASSWORD)
-            await self.page.click('button[type="submit"]')
+            await self.page.wait_for_selector(login["email_field"], timeout=5000)
+            await self.page.fill(login["email_field"], CHATBOT_EMAIL)
+            await self.page.click(login["submit_button"])
+
+            await self.page.wait_for_selector(login["password_field"], timeout=5000)
+            await self.page.fill(login["password_field"], CHATBOT_PASSWORD)
+            await self.page.click(login["submit_button"])
+
             await self.page.wait_for_selector(SELECTORS["input_box"], timeout=15000)
         except Exception:
-            # Already logged in via saved session, or no login page appeared
+            # Already logged in, or no login page appeared
             pass
 
     async def send_message(self, message: str) -> str:
-        """
-        The core of WrapperAI:
-        1. Types your message into the chatbot UI
-        2. Clicks send
-        3. Waits for the response to finish streaming
-        4. Returns the response text
-        """
+        """Type a message into the chatbot UI and return the response."""
         async with self.lock:
-            # Type the message
             input_box = self.page.locator(SELECTORS["input_box"])
             await input_box.click()
             await input_box.fill(message)
-
-            # Click send
             await self.page.click(SELECTORS["send_button"])
 
-            # Wait for the response to appear and stop changing (streaming finished)
+            # Wait for response to finish streaming
             last_text = ""
             stable_count = 0
 
@@ -76,6 +71,5 @@ class BrowserManager:
             return last_text
 
     async def stop(self):
-        """Clean up the browser when the server shuts down."""
         await self.browser.close()
         await self.playwright.stop()

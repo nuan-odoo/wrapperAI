@@ -2,12 +2,12 @@ version: "3.8"
 
 services:
   wrapperai:
-    image: ghcr.io/YOUR_GITHUB_USERNAME/wrapperai:latest
+    image: ghcr.io/nuan-odoo/wrapperai:latest
     ports:
       - "8000:8000"
     environment:
-      - CHATBOT_URL=https://claude.ai/new
-      - CHATBOT_EMAIL=your@email.com       # ← put your login email here
-      - CHATBOT_PASSWORD=yourpassword      # ← put your password here
+      - CHATBOT_TARGET=claude        # ← switch to: claude, gemini, or chatgpt
+      - CHATBOT_EMAIL=your@email.com
+      - CHATBOT_PASSWORD=yourpassword
     restart: unless-stopped
-    shm_size: '2gb'                        # Chromium needs this inside Docker
+    shm_size: '2gb'
