@@ -28,8 +28,25 @@ class BrowserManager:
         context = await self.browser.new_context()
 
         # Inject cookies before navigating (cookie-based auth like Claude)
-        if config["auth"] == "cookie" and cookies:
-            await context.add_cookies(cookies)
+if config["auth"] == "cookie" and cookies:
+    # Sanitize sameSite values — Playwright only accepts Strict, Lax, or None
+    sameSite_map = {
+        "no_restriction": "None",
+        "unspecified":    "None",
+        "strict":         "Strict",
+        "lax":            "Lax",
+        "none":           "None",
+    }
+    cleaned = []
+    for cookie in cookies:
+        c = dict(cookie)
+        raw = str(c.get("sameSite", "Lax")).lower()
+        c["sameSite"] = sameSite_map.get(raw, "Lax")
+        # Remove keys Playwright doesn't accept
+        for key in ["storeId", "hostOnly", "session"]:
+            c.pop(key, None)
+        cleaned.append(c)
+    await context.add_cookies(cleaned)
 
         self.page = await context.new_page()
         await self.page.goto(config["url"])
